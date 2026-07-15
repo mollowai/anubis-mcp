@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.6.3](https://github.com/zoedsoupe/anubis-mcp/compare/v1.6.2...v1.6.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* prevent "Server not initialized" race on first request ([#198](https://github.com/zoedsoupe/anubis-mcp/issues/198)) ([e84624c](https://github.com/zoedsoupe/anubis-mcp/commit/e84624cdf603ca65b26de77f253bdadf51a57079))
+* **server:** resolve session names via Registry to prevent atom-exhaustion DoS ([#188](https://github.com/zoedsoupe/anubis-mcp/issues/188)) ([17e4a6d](https://github.com/zoedsoupe/anubis-mcp/commit/17e4a6d7d4c1baa90744b2c54392025b170a3f3a))
+
+
+### Continuous Integration
+
+* add pr-quality workflow ([c0ca08f](https://github.com/zoedsoupe/anubis-mcp/commit/c0ca08f31bcac2ea322dd0c6249f8d7efa8ffcd3))
+* fix zig correct version for burrito ([6e410bd](https://github.com/zoedsoupe/anubis-mcp/commit/6e410bd509031264c138cdf4ff0efd8aa27d491a))
+* use mlugg/setup-zig 0.15.2 in release-please auto build job ([2ed6187](https://github.com/zoedsoupe/anubis-mcp/commit/2ed61875f87e464d20cbf8392d9c72933894755f))
+
 ## [1.6.2](https://github.com/zoedsoupe/anubis-mcp/compare/v1.6.1...v1.6.2) (2026-06-09)
 
 ### Bug Fixes
