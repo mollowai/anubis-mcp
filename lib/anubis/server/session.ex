@@ -618,7 +618,7 @@ defmodule Anubis.Server.Session do
         handle_server_ping(decoded, state)
 
       not is_server_initialized(decoded, state) ->
-        handle_server_not_initialized(decoded, state)
+        handle_server_not_initialized(decoded, transport_context, from, state)
 
       Message.is_request(decoded) ->
         handle_request(decoded, transport_context, from, state)
@@ -632,16 +632,57 @@ defmodule Anubis.Server.Session do
     {:reply, {:ok, encode_reply(Message.build_response(%{}, request_id))}, state}
   end
 
-  defp handle_server_not_initialized(decoded, state) do
-    error = Error.protocol(:invalid_request, %{message: "Server not initialized"})
+  defp handle_server_not_initialized(decoded, transport_context, from, state) do
+    case reconcile_initialized_from_store(state) do
+      {:ok, reconciled_state} ->
+        Logging.server_event("session_reconciled_from_store", %{
+          session_id: reconciled_state.session_id,
+          method: decoded["method"]
+        })
 
-    Logging.server_event(
-      "request_error",
-      %{error: error, reason: "not_initialized"},
-      level: :warning
-    )
+        handle_single_request(decoded, transport_context, from, reconciled_state)
 
-    {:reply, {:ok, encode_reply(Error.build_json_rpc(error, decoded["id"]))}, state}
+      :not_initialized ->
+        error = Error.protocol(:invalid_request, %{message: "Server not initialized"})
+
+        Logging.server_event(
+          "request_error",
+          %{
+            error: error,
+            reason: "not_initialized",
+            session_id: state.session_id,
+            method: decoded["method"]
+          },
+          level: :warning
+        )
+
+        {:reply, {:ok, encode_reply(Error.build_json_rpc(error, decoded["id"]))}, state}
+    end
+  end
+
+  # A session can complete `initialize` on one instance and its
+  # `notifications/initialized` on another when the webapp runs multiple
+  # un-clustered instances (see the store adapter's docs). This instance then
+  # holds a live session that never ran `init/2`: `initialized` is false AND no
+  # tools/prompts are registered on its frame, so flipping the flag alone would
+  # only turn "Server not initialized" into "Tool not found". When the shared
+  # store confirms the handshake completed, re-run `init/2` here — registering
+  # tools/prompts and re-resolving identity exactly as the registry-miss restore
+  # path does — then adopt `initialized: true` and re-persist. Falls through to
+  # the error when there is no store, the session is absent/expired, the store
+  # still says uninitialized, or `init/2` fails.
+  defp reconcile_initialized_from_store(%{server_module: module} = state) do
+    with store when not is_nil(store) <- Anubis.get_session_store_adapter(),
+         {:ok, saved} <- store.load(state.session_id, []),
+         true <- saved["initialized"] || saved[:initialized] || false,
+         frame = prepare_frame(state),
+         {:ok, frame} <- maybe_call_init(module, state.client_info, frame) do
+      reconciled = %{state | initialized: true, frame: frame}
+      maybe_persist_session(reconciled)
+      {:ok, reconciled}
+    else
+      _ -> :not_initialized
+    end
   end
 
   defp handle_invalid_request(state) do
